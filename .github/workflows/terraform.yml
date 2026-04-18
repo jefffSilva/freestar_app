@@ -1,0 +1,141 @@
+name: Terraform
+
+# PR (into main): fmt, validate, plan — no apply. Push to main: plan then apply (same saved plan).
+#
+# Repository Variables (Settings → Secrets and variables → Actions → Variables):
+#   GCP_PROJECT_ID, GCP_REGION, CLOUD_RUN_SERVICE_NAME
+#   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_TERRAFORM_SERVICE_ACCOUNT
+#   TERRAFORM_MODULES_GITHUB_ORG (replaces YOUR_GITHUB_ORG in infra/main.tf for module git sources)
+# Optional: TF_STATE_BUCKET (+ TF_STATE_PREFIX, default freestar/infra) for GCS remote state.
+# Optional: add TF_VAR_* variables for enable_load_balancer, lb_ssl_domains, name_prefix, etc.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: terraform-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+  TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+  TF_VAR_region: ${{ vars.GCP_REGION }}
+  TF_VAR_cloud_run_service_name: ${{ vars.CLOUD_RUN_SERVICE_NAME }}
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  TF_STATE_PREFIX: ${{ vars.TF_STATE_PREFIX }}
+
+defaults:
+  run:
+    working-directory: infra
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Substitute GitHub org in module sources
+        env:
+          MODULES_ORG: ${{ vars.TERRAFORM_MODULES_GITHUB_ORG }}
+        run: |
+          set -euo pipefail
+          if grep -q 'YOUR_GITHUB_ORG' main.tf && [ -z "${MODULES_ORG:-}" ]; then
+            echo "::error title=Terraform modules::Set Variable TERRAFORM_MODULES_GITHUB_ORG or replace YOUR_GITHUB_ORG in infra/main.tf"
+            exit 1
+          fi
+          if [ -n "${MODULES_ORG:-}" ]; then
+            sed -i.bak "s/YOUR_GITHUB_ORG/${MODULES_ORG}/g" main.tf
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: ./../.github/scripts/terraform-init.sh
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: terraform_plan
+        run: terraform plan -no-color -out=tfplan
+
+      - name: Show plan summary
+        if: steps.terraform_plan.outcome == 'success'
+        run: terraform show -no-color tfplan
+
+  plan_and_apply:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Substitute GitHub org in module sources
+        env:
+          MODULES_ORG: ${{ vars.TERRAFORM_MODULES_GITHUB_ORG }}
+        run: |
+          set -euo pipefail
+          if grep -q 'YOUR_GITHUB_ORG' main.tf && [ -z "${MODULES_ORG:-}" ]; then
+            echo "::error title=Terraform modules::Set Variable TERRAFORM_MODULES_GITHUB_ORG or replace YOUR_GITHUB_ORG in infra/main.tf"
+            exit 1
+          fi
+          if [ -n "${MODULES_ORG:-}" ]; then
+            sed -i.bak "s/YOUR_GITHUB_ORG/${MODULES_ORG}/g" main.tf
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: ./../.github/scripts/terraform-init.sh
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -no-color -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan

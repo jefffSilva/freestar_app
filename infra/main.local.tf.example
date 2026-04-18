@@ -1,0 +1,8 @@
+# Optional: when both repos are checked out side-by-side for local terraform plan/apply,
+# temporarily replace each module `source` in main.tf with a local path (Terraform does
+# not allow variables in module.source):
+#
+#   source = "../../freestar_modules/network"
+#   source = "../../freestar_modules/security"
+#   source = "../../freestar_modules/secrets"
+#   source = "../../freestar_modules/load_balancer"

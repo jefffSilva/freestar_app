@@ -1,0 +1,14 @@
+{
+  "name": "freestar-hello-cloud-run",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Minimal HTTP service for Cloud Run",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {}
+}
