@@ -5,7 +5,7 @@ name: Terraform
 # Repository Variables (Settings → Secrets and variables → Actions → Variables):
 #   GCP_PROJECT_ID, GCP_REGION, CLOUD_RUN_SERVICE_NAME
 #   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_TERRAFORM_SERVICE_ACCOUNT
-#   TERRAFORM_MODULES_GITHUB_ORG (replaces YOUR_GITHUB_ORG in infra/main.tf for module git sources)
+#   TERRAFORM_MODULES_GITHUB_ORG — optional; if unset, YOUR_GITHUB_ORG is replaced with github.repository_owner (same owner as freestar_app). Set when freestar_modules lives under another org/user.
 # Optional: TF_STATE_BUCKET (+ TF_STATE_PREFIX, default freestar/infra) for GCS remote state.
 # Optional: add TF_VAR_* variables for enable_load_balancer, lb_ssl_domains, name_prefix, etc.
 
@@ -53,16 +53,9 @@ jobs:
 
       - name: Substitute GitHub org in module sources
         env:
-          MODULES_ORG: ${{ vars.TERRAFORM_MODULES_GITHUB_ORG }}
-        run: |
-          set -euo pipefail
-          if grep -q 'YOUR_GITHUB_ORG' main.tf && [ -z "${MODULES_ORG:-}" ]; then
-            echo "::error title=Terraform modules::Set Variable TERRAFORM_MODULES_GITHUB_ORG or replace YOUR_GITHUB_ORG in infra/main.tf"
-            exit 1
-          fi
-          if [ -n "${MODULES_ORG:-}" ]; then
-            sed -i.bak "s/YOUR_GITHUB_ORG/${MODULES_ORG}/g" main.tf
-          fi
+          TERRAFORM_MODULES_GITHUB_ORG: ${{ vars.TERRAFORM_MODULES_GITHUB_ORG }}
+          GITHUB_REPO_OWNER: ${{ github.repository_owner }}
+        run: ../.github/scripts/substitute-modules-org.sh
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -102,16 +95,9 @@ jobs:
 
       - name: Substitute GitHub org in module sources
         env:
-          MODULES_ORG: ${{ vars.TERRAFORM_MODULES_GITHUB_ORG }}
-        run: |
-          set -euo pipefail
-          if grep -q 'YOUR_GITHUB_ORG' main.tf && [ -z "${MODULES_ORG:-}" ]; then
-            echo "::error title=Terraform modules::Set Variable TERRAFORM_MODULES_GITHUB_ORG or replace YOUR_GITHUB_ORG in infra/main.tf"
-            exit 1
-          fi
-          if [ -n "${MODULES_ORG:-}" ]; then
-            sed -i.bak "s/YOUR_GITHUB_ORG/${MODULES_ORG}/g" main.tf
-          fi
+          TERRAFORM_MODULES_GITHUB_ORG: ${{ vars.TERRAFORM_MODULES_GITHUB_ORG }}
+          GITHUB_REPO_OWNER: ${{ github.repository_owner }}
+        run: ../.github/scripts/substitute-modules-org.sh
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2

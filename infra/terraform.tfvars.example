@@ -11,6 +11,7 @@ enable_load_balancer = false
 # lb_ssl_domains = ["api.example.com"]
 
 # Modules are sourced from Git in main.tf (freestar_modules repo). Edit YOUR_GITHUB_ORG there,
-# or set GitHub Variable TERRAFORM_MODULES_GITHUB_ORG for CI (.github/workflows/terraform.yml).
+# or leave the placeholder: CI substitutes it using repository_owner unless you set
+# Variable TERRAFORM_MODULES_GITHUB_ORG (e.g. modules repo under a different org).
 
 # CI passes TF_VAR_* via Actions Variables; mirror here for local applies.
